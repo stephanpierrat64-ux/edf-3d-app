@@ -1,0 +1,68 @@
+# Shapefiles et données SIG lourdes
+*.shp
+*.dbf
+*.shx
+*.prj
+*.cpg
+*.qix
+*.gpkg
+*.tif
+*.tif.aux.xml
+*.qmd
+*.qml
+*.kmz
+
+# Archives et exports
+Permit avancement*.zip
+Permit_Avancement*.zip
+Sources Filtrées*.zip
+*.zip
+
+# Fichiers Excel/Office sources (données sensibles)
+*.xlsx
+*.xlsm
+*.xlsb
+*.xls
+*.xlsb
+*.csv
+*.pdf
+*.docx
+*.doc
+
+# Sauf les fichiers CSV générés pour l'app
+!intersection_rcv_permit_2004.csv
+!data/exploitants.csv
+!data/receivers_agri.csv
+!data/sources_agri.csv
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# Node
+node_modules/
+package-lock.json
+
+# Logs et temporaires
+streamlit_log.txt
+streamlit_err.txt
+*.log
+~$*
+
+# Dossiers de sauvegarde
+sauvegarde/
+deploy_temp/
+maj/
+Nouveau dossier/
+NoGo/
+Pre-rapport/
+Rapport/
+Resultats/
+Cartes rapport/
+Correspondances Proprios/
+2025-2026/
+python/
