@@ -410,39 +410,37 @@ elif page == "🌾 Exploitants agricoles":
                 ),
             ).add_to(m)
 
-        # Points RP (bleu)
+        # Points RP – petits points bleus
         rp_group = folium.FeatureGroup(name="RP (receivers)", show=True)
-        statut_color_map = {
-            "OK": "green", "PVG": "orange", "PG": "orange",
-            "NC": "red", "PV": "blue", "NR": "gray",
-        }
         for _, row in rcv_sel.iterrows():
             try:
                 lat, lon = float(row["lat"]), float(row["lon"])
             except (ValueError, KeyError):
                 continue
-            statut = str(row.get("STATUT", "")).strip().upper()
-            color  = statut_color_map.get(statut, "blue")
+            statut   = str(row.get("STATUT", "")).strip().upper()
+            state    = str(row.get("state", "")).strip()
             popup_html = (
                 f"<b>RP {row.get('station','')}</b><br>"
                 f"Ligne {row.get('line','')} · Point {row.get('point','')}<br>"
-                f"Statut : <b>{row.get('STATUT DET', row.get('STATUT',''))}</b><br>"
+                f"État : {state}<br>"
+                f"Statut : <b>{row.get('STATUT DET', statut)}</b><br>"
                 f"Culture : {row.get('CULTURES 2','')}<br>"
                 f"Consignes : {row.get('CONSIGNES','')}"
             )
             folium.CircleMarker(
                 location=[lat, lon],
-                radius=6,
-                color=color,
+                radius=4,
+                color="#1565C0",
                 fill=True,
-                fill_color=color,
-                fill_opacity=0.85,
+                fill_color="#1565C0",
+                fill_opacity=1.0,
+                weight=0,
                 popup=folium.Popup(popup_html, max_width=280),
                 tooltip=f"RP {row.get('station','')}",
             ).add_to(rp_group)
         rp_group.add_to(m)
 
-        # Points SP (rouge/orange)
+        # Points SP – petits points rouges
         sp_group = folium.FeatureGroup(name="SP (sources)", show=True)
         for _, row in src_sel.iterrows():
             try:
@@ -451,21 +449,31 @@ elif page == "🌾 Exploitants agricoles":
                 continue
             popup_html = (
                 f"<b>SP {row.get('id','')}</b><br>"
-                f"Type : {row.get('type','')}<br>"
-                f"Densité : {row.get('Densite','')}"
+                f"Station : {row.get('station','')}<br>"
+                f"Type : {row.get('source_typ', row.get('type',''))}<br>"
+                f"Statut : {row.get('status','')}<br>"
+                f"Commune : {row.get('commune','')}"
             )
-            folium.RegularPolygonMarker(
+            folium.CircleMarker(
                 location=[lat, lon],
-                number_of_sides=3,
-                radius=7,
-                color="#cc4400",
+                radius=4,
+                color="#C62828",
                 fill=True,
-                fill_color="#ff6600",
-                fill_opacity=0.85,
+                fill_color="#C62828",
+                fill_opacity=1.0,
+                weight=0,
                 popup=folium.Popup(popup_html, max_width=240),
-                tooltip=f"SP {row.get('id','')}",
+                tooltip=f"SP {row.get('station', row.get('id',''))}",
             ).add_to(sp_group)
         sp_group.add_to(m)
+
+        # Géolocalisation – bouton "Ma position"
+        from folium.plugins import LocateControl
+        LocateControl(
+            position="topright",
+            strings={"title": "Ma position"},
+            locate_options={"enableHighAccuracy": True, "watch": False},
+        ).add_to(m)
 
         folium.LayerControl(collapsed=False).add_to(m)
 
