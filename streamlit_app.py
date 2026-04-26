@@ -33,6 +33,132 @@ def load_agri_data():
     return rcv, src, exp, parcelles
 
 
+@st.cache_data
+def build_all_kml_bytes():
+    import simplekml as _skml
+    rcv = pd.read_csv("data/receivers_agri.csv", dtype=str).fillna("")
+    src = pd.read_csv("data/sources_agri.csv",   dtype=str).fillna("")
+    exp = pd.read_csv("data/exploitants.csv",     dtype=str).fillna("")
+    with open("data/parcelles_agri.geojson", encoding="utf-8") as f:
+        parcelles = json.load(f)
+
+    exp_lkp = {r["agri_key"]: r for _, r in exp.iterrows()}
+
+    def poly_sty(statut):
+        FILL = {
+            "OK":  _skml.Color.changealpha("70", _skml.Color.green),
+            "PVG": _skml.Color.changealpha("70", _skml.Color.yellow),
+            "PG":  _skml.Color.changealpha("70", _skml.Color.yellow),
+            "NC":  _skml.Color.changealpha("70", _skml.Color.red),
+            "PC":  _skml.Color.changealpha("70", _skml.Color.cyan),
+            "R":   _skml.Color.changealpha("70", _skml.Color.purple),
+            "NR":  _skml.Color.changealpha("70", _skml.Color.lightgrey),
+        }
+        LINE = {
+            "OK": _skml.Color.darkgreen, "PVG": _skml.Color.orange,
+            "PG": _skml.Color.orange,    "NC":  _skml.Color.red,
+            "PC": _skml.Color.blue,      "R":   _skml.Color.purple,
+            "NR": _skml.Color.grey,
+        }
+        s = _skml.Style()
+        s.polystyle.color = FILL.get(statut, _skml.Color.changealpha("70", _skml.Color.yellow))
+        s.linestyle.color = LINE.get(statut, _skml.Color.orange)
+        s.linestyle.width = 2
+        return s
+
+    sty_rp = _skml.Style()
+    sty_rp.iconstyle.color = _skml.Color.blue
+    sty_rp.iconstyle.scale = 0.7
+    sty_rp.iconstyle.icon.href = "http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png"
+    sty_rp.labelstyle.scale = 0
+
+    sty_sp = _skml.Style()
+    sty_sp.iconstyle.color = _skml.Color.red
+    sty_sp.iconstyle.scale = 0.7
+    sty_sp.iconstyle.icon.href = "http://maps.google.com/mapfiles/kml/shapes/triangle.png"
+    sty_sp.labelstyle.scale = 0
+
+    kml = _skml.Kml()
+    kml.document.name = "Exploitants agricoles EDF 3D 2026"
+    fld_parc = kml.newfolder(name="Parcelles")
+    fld_rp   = kml.newfolder(name="Receivers RP")
+    fld_sp   = kml.newfolder(name="Sources SP")
+
+    for feat in parcelles.get("features", []):
+        geom  = feat.get("geometry", {})
+        props = feat.get("properties", {})
+        gtype = geom.get("type", "")
+        if gtype not in ("Polygon", "MultiPolygon"):
+            continue
+        ak   = props.get("agri_key", "")
+        e2   = exp_lkp.get(ak, {})
+        nom  = props.get("NOM", "").strip()
+        prn  = props.get("PRENOM", "").strip()
+        stat = str(props.get("STATUT", "")).strip().upper()
+        tel  = str(e2.get("TEL_FORMAT", "")).strip()
+        dlines = [f"Exploitant : {nom} {prn}"]
+        if tel and tel != "nan":
+            dlines.append(f"Tel : {tel}")
+        for k, lb in [("NOM_COM","Commune"),("CULTURES 2","Culture"),
+                      ("STATUT DET","Statut"),("CONSIGNES","Consignes"),
+                      ("Cadagri_26","Cadagri")]:
+            v = str(props.get(k, "")).strip()
+            if v and v != "nan":
+                dlines.append(f"{lb} : {v}")
+        sty = poly_sty(stat)
+        raw = geom.get("coordinates", [])
+        for pc in ([raw] if gtype == "Polygon" else raw):
+            outer = pc[0] if pc else []
+            pol = fld_parc.newpolygon(name=f"{nom} {prn}",
+                                      outerboundaryis=[(c[0], c[1]) for c in outer])
+            pol.style = sty
+            pol.description = "\n".join(dlines)
+
+    for _, row in rcv.iterrows():
+        try:
+            lat, lon = float(row["lat"]), float(row["lon"])
+        except (ValueError, KeyError):
+            continue
+        e2  = exp_lkp.get(row.get("agri_key", ""), {})
+        nom2 = str(e2.get("agri_display", "")).strip() or row.get("agri_key", "")
+        tel  = str(e2.get("TEL_FORMAT", "")).strip()
+        dlines = [f"Exploitant : {nom2}"]
+        if tel and tel != "nan":
+            dlines.append(f"Tel : {tel}")
+        for k, lb in [("line","Ligne"),("point","Point"),("state","Etat"),
+                      ("STATUT DET","Statut"),("CULTURES 2","Culture"),
+                      ("CONSIGNES","Consignes")]:
+            v = str(row.get(k, "")).strip()
+            if v and v != "nan":
+                dlines.append(f"{lb} : {v}")
+        pt = fld_rp.newpoint(name=str(row.get("station", "")), coords=[(lon, lat)])
+        pt.style = sty_rp
+        pt.description = "\n".join(dlines)
+
+    for _, row in src.iterrows():
+        try:
+            lat, lon = float(row["lat"]), float(row["lon"])
+        except (ValueError, KeyError):
+            continue
+        e2   = exp_lkp.get(row.get("agri_key", ""), {})
+        nom2 = str(e2.get("agri_display", "")).strip() or row.get("agri_key", "")
+        dlines = [f"Exploitant : {nom2}"]
+        for k, lb in [("source_typ","Type"),("status","Statut"),("commune","Commune")]:
+            v = str(row.get(k, "")).strip()
+            if v and v != "nan":
+                dlines.append(f"{lb} : {v}")
+        station = str(row.get("station", row.get("id", ""))).strip()
+        pt = fld_sp.newpoint(name=f"SP {station}", coords=[(lon, lat)])
+        pt.style = sty_sp
+        pt.description = "\n".join(dlines)
+
+    import io as _io
+    buf = _io.BytesIO()
+    buf.write(kml.kml().encode("utf-8"))
+    buf.seek(0)
+    return buf.read()
+
+
 # =============================================================================
 # PAGE 1 – RECHERCHE STATION (existante, inchangée)
 # =============================================================================
@@ -138,6 +264,22 @@ elif page == "🌾 Exploitants agricoles":
     import simplekml
 
     st.title("🌾 Exploitants agricoles – Carte")
+
+    # ── Export global KML (sidebar) ───────────────────────────────────────────
+    with st.sidebar:
+        st.divider()
+        st.markdown("**Export global**")
+        try:
+            kml_all_bytes = build_all_kml_bytes()
+            st.download_button(
+                label="⬇️ KML tous les exploitants",
+                data=kml_all_bytes,
+                file_name="all_exploitants.kml",
+                mime="application/vnd.google-earth.kml+xml",
+                help="Importer dans Google MyMaps",
+            )
+        except FileNotFoundError:
+            st.caption("Données manquantes — lancer prepare_agri_data.py")
 
     # ── Helpers géométrie (sans geopandas) ────────────────────────────────────
 
