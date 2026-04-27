@@ -92,17 +92,17 @@ def build_all_kml_bytes():
             continue
         ak   = props.get("agri_key", "")
         e2   = exp_lkp.get(ak, {})
-        nom  = props.get("NOM", "").strip()
-        prn  = props.get("PRENOM", "").strip()
-        stat = str(props.get("STATUT", "")).strip().upper()
-        tel  = str(e2.get("TEL_FORMAT", "")).strip()
+        nom  = str(props.get("NOM",    "") or "").strip()
+        prn  = str(props.get("PRENOM", "") or "").strip()
+        stat = str(props.get("STATUT", "") or "").strip().upper()
+        tel  = str(e2.get("TEL_FORMAT", "") or "").strip()
         dlines = [f"Exploitant : {nom} {prn}"]
         if tel and tel != "nan":
             dlines.append(f"Tel : {tel}")
         for k, lb in [("NOM_COM","Commune"),("CULTURES 2","Culture"),
                       ("STATUT DET","Statut"),("CONSIGNES","Consignes"),
                       ("Cadagri_26","Cadagri")]:
-            v = str(props.get(k, "")).strip()
+            v = str(props.get(k, "") or "").strip()
             if v and v != "nan":
                 dlines.append(f"{lb} : {v}")
         sty = poly_sty(stat)
@@ -120,15 +120,15 @@ def build_all_kml_bytes():
         except (ValueError, KeyError):
             continue
         e2  = exp_lkp.get(row.get("agri_key", ""), {})
-        nom2 = str(e2.get("agri_display", "")).strip() or row.get("agri_key", "")
-        tel  = str(e2.get("TEL_FORMAT", "")).strip()
+        nom2 = str(e2.get("agri_display", "") or "").strip() or str(row.get("agri_key", ""))
+        tel  = str(e2.get("TEL_FORMAT", "") or "").strip()
         dlines = [f"Exploitant : {nom2}"]
         if tel and tel != "nan":
             dlines.append(f"Tel : {tel}")
         for k, lb in [("line","Ligne"),("point","Point"),("state","Etat"),
                       ("STATUT DET","Statut"),("CULTURES 2","Culture"),
                       ("CONSIGNES","Consignes")]:
-            v = str(row.get(k, "")).strip()
+            v = str(row.get(k, "") or "").strip()
             if v and v != "nan":
                 dlines.append(f"{lb} : {v}")
         pt = fld_rp.newpoint(name=str(row.get("station", "")), coords=[(lon, lat)])
@@ -141,10 +141,10 @@ def build_all_kml_bytes():
         except (ValueError, KeyError):
             continue
         e2   = exp_lkp.get(row.get("agri_key", ""), {})
-        nom2 = str(e2.get("agri_display", "")).strip() or row.get("agri_key", "")
+        nom2 = str(e2.get("agri_display", "") or "").strip() or str(row.get("agri_key", ""))
         dlines = [f"Exploitant : {nom2}"]
         for k, lb in [("source_typ","Type"),("status","Statut"),("commune","Commune")]:
-            v = str(row.get(k, "")).strip()
+            v = str(row.get(k, "") or "").strip()
             if v and v != "nan":
                 dlines.append(f"{lb} : {v}")
         station = str(row.get("station", row.get("id", ""))).strip()
@@ -269,17 +269,29 @@ elif page == "🌾 Exploitants agricoles":
     with st.sidebar:
         st.divider()
         st.markdown("**Export global**")
-        try:
-            kml_all_bytes = build_all_kml_bytes()
+        if "kml_all_ready" not in st.session_state:
+            st.session_state["kml_all_ready"] = False
+        if not st.session_state["kml_all_ready"]:
+            if st.button("🗂️ Préparer KML complet", use_container_width=True):
+                try:
+                    with st.spinner("Génération en cours…"):
+                        st.session_state["kml_all_bytes"] = build_all_kml_bytes()
+                    st.session_state["kml_all_ready"] = True
+                    st.rerun()
+                except Exception as ex:
+                    st.error(f"Erreur : {ex}")
+        else:
             st.download_button(
                 label="⬇️ KML tous les exploitants",
-                data=kml_all_bytes,
+                data=st.session_state["kml_all_bytes"],
                 file_name="all_exploitants.kml",
                 mime="application/vnd.google-earth.kml+xml",
                 help="Importer dans Google MyMaps",
+                use_container_width=True,
             )
-        except FileNotFoundError:
-            st.caption("Données manquantes — lancer prepare_agri_data.py")
+            if st.button("↺ Regénérer", use_container_width=True):
+                st.session_state["kml_all_ready"] = False
+                st.rerun()
 
     # ── Helpers géométrie (sans geopandas) ────────────────────────────────────
 
