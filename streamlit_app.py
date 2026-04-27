@@ -33,7 +33,6 @@ def load_agri_data():
     return rcv, src, exp, parcelles
 
 
-@st.cache_data
 def build_all_kml_bytes():
     import simplekml as _skml
     rcv = pd.read_csv("data/receivers_agri.csv", dtype=str).fillna("")
